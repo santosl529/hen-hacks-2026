@@ -88,6 +88,34 @@ function getOrderStatusDisplay(status: string) {
   }
 }
 
+const MAX_ANALYZE_UPLOAD_BYTES = 4.2 * 1024 * 1024
+const MAX_ANALYZE_DIMENSION = 1280
+const ANALYZE_JPEG_QUALITY = 0.8
+
+async function compressImageForAnalysis(file: File) {
+  const bitmap = await createImageBitmap(file)
+  const scale = Math.min(1, MAX_ANALYZE_DIMENSION / Math.max(bitmap.width, bitmap.height))
+  const width = Math.round(bitmap.width * scale)
+  const height = Math.round(bitmap.height * scale)
+
+  const canvas = document.createElement("canvas")
+  canvas.width = width
+  canvas.height = height
+
+  const ctx = canvas.getContext("2d")
+  if (!ctx) {
+    throw new Error("Unable to process image")
+  }
+
+  ctx.drawImage(bitmap, 0, 0, width, height)
+  if ("close" in bitmap) bitmap.close()
+
+  const dataUrl = canvas.toDataURL("image/jpeg", ANALYZE_JPEG_QUALITY)
+  const base64 = dataUrl.split(",")[1] ?? ""
+
+  return { base64, mimeType: "image/jpeg" }
+}
+
 export function PlaterView() {
   const [showAIResult, setShowAIResult] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -182,20 +210,19 @@ export function PlaterView() {
     setAnalyzing(true)
 
     try {
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => {
-          const result = reader.result as string
-          resolve(result.split(",")[1])
-        }
-        reader.onerror = reject
-        reader.readAsDataURL(file)
-      })
+      const { base64, mimeType } = await compressImageForAnalysis(file)
+      if (!base64) {
+        throw new Error("Unable to read the image")
+      }
+
+      if (base64.length > MAX_ANALYZE_UPLOAD_BYTES) {
+        throw new Error("Image is still too large to upload. Try a smaller one.")
+      }
 
       const res = await fetch("/api/analyze-food", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: base64, mimeType: file.type }),
+        body: JSON.stringify({ image: base64, mimeType }),
       })
 
       if (!res.ok) {
