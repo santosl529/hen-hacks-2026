@@ -168,6 +168,13 @@ export function PlaterView() {
     const file = e.target.files?.[0]
     if (!file) return
 
+    const maxImageSizeMb = 4.5
+    if (file.size > maxImageSizeMb * 1024 * 1024) {
+      setAnalyzeError(`Image must be ${maxImageSizeMb}MB or smaller`)
+      if (fileInputRef.current) fileInputRef.current.value = ""
+      return
+    }
+
     setAnalyzeError(null)
     setImagePreview(URL.createObjectURL(file))
     setShowAIResult(false)
@@ -446,7 +453,7 @@ export function PlaterView() {
                   <>
                     <Upload className="h-8 w-8 text-muted-foreground" />
                     <span className="text-sm text-muted-foreground">Click to upload an image</span>
-                    <span className="text-xs text-muted-foreground/70">PNG, JPG up to 5MB</span>
+                    <span className="text-xs text-muted-foreground/70">PNG, JPG up to 4.5MB</span>
                   </>
                 )}
               </button>
